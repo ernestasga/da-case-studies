@@ -1,0 +1,16 @@
+# Changelog
+All changes cto a dataset will be documented in this file
+
+## [1.0.0] - 2021-07-23
+
+### Edited
+- Merge 12 datasets for each month into one file (R)
+- Parse 'started_at' and 'ended_at' columns as datetime (R)
+### Removed
+- Remove 209 duplicate rows (R)
+### Added
+- Add column 'ride_time' for length of the ride in minutes (R)
+- Add column 'year_month' to extract year and month from date (R)
+- Add column 'day_of_week' to extract day of the week from date (R)
+- Add column 'start_hour' to extract hour of ride start (R)
+- Add column 'end_hour' to extract hour of ride end (R)

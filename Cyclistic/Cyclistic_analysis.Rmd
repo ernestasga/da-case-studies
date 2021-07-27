@@ -1,0 +1,204 @@
+---
+title: "Cyclistic Analysis"
+author: "Ernestas G."
+date: "7/23/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setting up the environment
+```{r}
+library(tidyverse)
+```
+
+
+## Merge datasets
+Combine 12 datasets into 1
+```{r merge datasets}
+csv_files_path <- "data/original"
+csv_lifes <- list.files(path=csv_files_path, full.names = TRUE)
+df_merged <- do.call(rbind, lapply(csv_lifes, read_csv))
+# write.csv(df_merged, "data/full_dataset.csv", row.names = FALSE)
+
+```
+
+## Data cleaning
+### Remove duplicates
+```{r remove duplicates}
+df_no_duplicates <- df_merged[!duplicated(df_merged$ride_id), ]
+print(paste(nrow(df_merged)-nrow(df_no_duplicates), " duplicated rows removed"))
+
+```
+### Parse datetime columns
+```{r parse datetime columns}
+df_no_duplicates$started_at <- as.POSIXct(df_no_duplicates$started_at, "%Y-%m-%d %H:%M:%S")
+df_no_duplicates$ended_at <- as.POSIXct(df_no_duplicates$ended_at, "%Y-%m-%d %H:%M:%S")
+
+print("Parsed 'started_at' and 'ended_at' columns as datetime")
+```
+
+### Add 'ride_time' column
+```{r add ride_time column}
+df_no_duplicates <- df_no_duplicates %>%
+  mutate(ride_time=difftime(ended_at, started_at, units = "mins"))
+print("Added 'ride_time' column in minutes")
+```
+
+### Add 'year_month' column
+```{r add year_month column}
+df_no_duplicates <- df_no_duplicates %>%
+  mutate(year_month=paste(strftime(started_at, "%Y"),
+                          "-",
+                          strftime(started_at, "%m")))
+print("Added 'year_month' column")
+
+```
+
+### Add 'weekday' column
+```{r add weekday column}
+df_no_duplicates <- df_no_duplicates %>%
+  mutate(weekday = paste(strftime(started_at, "%a")))
+print("Added 'weekday' column")
+```
+
+### Add 'start_hour' column
+```{r add start_hour column}
+df_no_duplicates <- df_no_duplicates %>%
+  mutate(start_hour=strftime(started_at, "%H"))
+```
+
+
+### Add 'end_hour' column
+```{r add end_hour column}
+df_no_duplicates <- df_no_duplicates %>%
+  mutate(end_hour=strftime(ended_at, "%H"))
+```
+
+### Save the dataset
+```{r save the dataset}
+#df_no_duplicates %>%
+#  write.csv("data/cleaned_full_dataset.csv")
+```
+
+## Analyse
+```{r prepare}
+df <- df_no_duplicates
+summary(df)
+```
+### Casual riders vs Members
+```{r}
+df %>%
+  group_by(member_casual) %>%
+  summarise(number_trips=length(ride_id),
+            percentage=(length(ride_id)/nrow(df))*100)
+
+ggplot(data=df)+
+  geom_bar(mapping = aes(x=member_casual, fill=member_casual))+
+  labs(title = "Casual riders vs members",
+       caption = "Data from 2020-04 to 2021-04",
+       x = "Customer type",
+       y = "Number of trips")
+```
+Casual riders account for ~41% of all customest, members account for ~59% of all customers
+
+### Rides distribution by month
+```{r distribution by month}
+df %>%
+  group_by(year_month) %>%
+  summarise(number_trips=length(ride_id),
+            percentage=(length(ride_id)/nrow(df))*100,
+            casual_perc=(sum(member_casual=="casual")/length(ride_id))*100,
+            member_perc=(sum(member_casual=="member")/length(ride_id))*100)
+
+ggplot(data=df)+
+  geom_bar(mapping = aes(x=year_month, fill=member_casual))+
+  labs(title = "Rides by month",
+       x = "Month",
+       y = "Number of trips")+
+  theme(axis.text.x = element_text(angle=45))
+
+```
+Customers are most active in summer months. Most active - August, followed by July. Winter months are least active. Member types are dominant during winter months. Distribution between casual riders and members is similar on other months.
+
+### Rides distributed by weekday
+```{r distribution by weekday}
+df %>%
+  group_by(weekday) %>%
+  summarise(number_trips=length(ride_id),
+            percentage=(length(ride_id)/nrow(df))*100,
+            casual_perc=(sum(member_casual=="casual")/length(ride_id))*100,
+            member_perc=(sum(member_casual=="member")/length(ride_id))*100)
+
+ggplot(data=df)+
+  geom_bar(mapping = aes(x=weekday, fill=member_casual))+
+  labs(title = "Rides by weekdays",
+       x = "Week Day",
+       y = "Number of rides")+
+  coord_flip()
+```
+Customers are most active on weekends, Saturday - most active followed by Sunday. Distribution on work days is similar, Monday being least active and Friday the most active.
+
+### Distribution by hour of the day
+```{r distribution by hour of the day}
+df %>%
+  group_by(start_hour) %>%
+  summarise(number_trips=length(ride_id),
+            percentage=(length(ride_id)/nrow(df))*100,
+            casual_perc=(sum(member_casual=="casual")/length(ride_id))*100,
+            member_perc=(sum(member_casual=="member")/length(ride_id))*100)
+
+ggplot(data = df) +
+  geom_bar(mapping = aes(x=start_hour, fill=member_casual))+
+  labs(title = "Rides by hour of the day",
+       x = "Hour",
+       y = "Number of trips")
+
+ggplot(data = df) +
+  geom_bar(mapping = aes(x=start_hour, fill=member_casual))+
+  labs(title = "Rides by hour of the day divided by weekday",
+       x = "Hour",
+       y = "Number of trips")+
+  facet_wrap(~weekday)+
+  theme(axis.text.x = element_text(angle=90))
+```
+
+Most active hour of the day is 20(8PM) followed by 19(7PM). Riders are more active on weekends.
+
+### Distribution by rideable type
+```{r distribution by ride type}
+df %>%
+  group_by(rideable_type) %>%
+  summarise(number_trips=length(ride_id),
+            percentage=(length(ride_id)/nrow(df))*100,
+            casual_perc=(sum(member_casual=="casual")/length(ride_id))*100,
+            member_perc=(sum(member_casual=="member")/length(ride_id))*100)
+
+ggplot(data = df) +
+  geom_bar(mapping = aes(x=rideable_type, fill=member_casual))+
+  labs(title = "Rides by ride type",
+       x = "Ride type",
+       y = "Number of trips")
+
+```
+Docked bike is the most popular with ~67.5% of all rides. 
+
+### Distribution by ride length
+```{r distribution by ride length}
+df %>%
+  group_by(member_casual) %>%
+  summarise(min(ride_time), max(ride_time), mean(ride_time))
+```
+#### Remove outliners 
+```{r remove outliners}
+df <- df %>%
+  filter(ride_time>0)
+
+df %>%
+  group_by(member_casual) %>%
+  summarise(min(ride_time), max(ride_time), mean(ride_time))
+```
+
+We can see that casual-riders average ride time is ~44 minutes whereas members average ride time is only ~15 minutes.
